@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"sync"
 )
 
 type OS string
@@ -28,27 +29,32 @@ type systemDetails struct {
 	ScriptLang string `json:"script-lang"`
 }
 
-type cmdService struct {
+type CmdService struct {
 	systemDetails
 	commands       []command
 	currentCommand *command
+	mu             sync.Mutex // Mutex for inconcurrent access
 }
 
-func NewCMD() cmdService {
-	return cmdService{
+func NewCMD() CmdService {
+	return CmdService{
 		systemDetails: DetectHostOS(),
 	}
 }
 
-func (s *cmdService) AddCommandToList(command *command) {
+func (s *CmdService) AddCommandToList(command *command) {
+	s.mu.Lock()         // Lock to ensure thread safety
+	defer s.mu.Unlock() // Unlock once the operation is complete
 	s.commands = append(s.commands, *command)
 }
 
-func (s *cmdService) ClearCommnads() {
+func (s *CmdService) ClearCommands() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
 	s.commands = []command{}
 }
 
-func (s *cmdService) Execute(cmdStr string) (string, error) {
+func (s *CmdService) Execute(cmdStr string) (string, error) {
 	var cmd *exec.Cmd
 
 	switch s.OSName {
@@ -90,21 +96,18 @@ func DetectHostOS() systemDetails {
 	case "darwin":
 		return systemDetails{OSName: MacOS, ScriptLang: "bash"}
 	default:
+		fmt.Printf("unsupported OS detected (%s). Defaulting to Linux.\n", runtime.GOOS)
 		return systemDetails{OSName: Linux, ScriptLang: "sh"}
 	}
 }
 
-func (s *cmdService) PrintCommandHistory() {
+func (s *CmdService) PrintCommandHistory() {
 	fmt.Println("=== Command History ===")
 	for i, cmd := range s.commands {
-		fmt.Printf("Command #%d:\n%s\n", i+1, cmd.String())
+		fmt.Printf("Command #%d:\n%s\n", i+1, cmd.PrettyString())
 	}
 }
 
-func (s systemDetails) String() string {
-	return fmt.Sprintf("[OS: %s, Script: %s]", s.OSName, s.ScriptLang)
-}
-
-func (c command) String() string {
-	return fmt.Sprintf("[\n\tInput: %s\n\tOutput: %s\n\tError: %s\n],", c.Input, c.Output, c.Err)
+func (c command) PrettyString() string {
+	return fmt.Sprintf("[Input: %s]\n[Output: %s]\n[Error: %s]", c.Input, c.Output, c.Err)
 }
