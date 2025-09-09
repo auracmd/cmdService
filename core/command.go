@@ -9,47 +9,53 @@ import (
 	"runtime"
 )
 
-type OperationSystem int
+type OS string
 
 const (
-	Windows = iota
-	Linux
-	MacOS
+	Windows = "windows"
+	Linux   = "linux"
+	MacOS   = "macos"
 )
 
-type Command struct {
+type command struct {
 	Input  string `json:"input"`
 	Output string `json:"output"`
 	Err    string `json:"error,omitempty"`
 }
 
-type System struct {
-	OS         OperationSystem
-	ScriptLang string
+type systemDetails struct {
+	OSName     OS     `json:"os"`
+	ScriptLang string `json:"script-lang"`
 }
 
-type CMDService struct {
-	System
-	Commands       []Command
-	CurrentCommand *Command
+type cmdService struct {
+	systemDetails
+	commands       []command
+	currentCommand *command
 }
 
-func (s *CMDService) AddCommandToList(command *Command) {
-	s.Commands = append(s.Commands, *command)
+func NewCMD() cmdService {
+	return cmdService{
+		systemDetails: DetectHostOS(),
+	}
 }
 
-func (s *CMDService) ClearCommnads() {
-	s.Commands = []Command{}
+func (s *cmdService) AddCommandToList(command *command) {
+	s.commands = append(s.commands, *command)
 }
 
-func (s *CMDService) Execute(cmdStr string) (string, error) {
+func (s *cmdService) ClearCommnads() {
+	s.commands = []command{}
+}
+
+func (s *cmdService) Execute(cmdStr string) (string, error) {
 	var cmd *exec.Cmd
 
-	switch s.OS {
+	switch s.OSName {
 	case Windows:
-		cmd = exec.Command("powershell", "-Command", cmdStr)
+		cmd = exec.Command(s.ScriptLang, "-Command", cmdStr)
 	case Linux, MacOS:
-		cmd = exec.Command("bash", "-c", cmdStr)
+		cmd = exec.Command(s.ScriptLang, "-c", cmdStr)
 	default:
 		return "", errors.New("unsupported OS")
 	}
@@ -60,41 +66,45 @@ func (s *CMDService) Execute(cmdStr string) (string, error) {
 
 	err := cmd.Run()
 
-	s.CurrentCommand = &Command{
+	s.currentCommand = &command{
 		Input:  cmdStr,
 		Output: out.String(),
 	}
 
 	if err != nil {
-		s.CurrentCommand.Err = err.Error()
-		s.AddCommandToList(s.CurrentCommand)
-		return s.CurrentCommand.Output, err
+		s.currentCommand.Err = err.Error()
+		s.AddCommandToList(s.currentCommand)
+		return s.currentCommand.Output, err
 	}
 
-	s.AddCommandToList(s.CurrentCommand)
-	return s.CurrentCommand.Output, nil
+	s.AddCommandToList(s.currentCommand)
+	return s.currentCommand.Output, nil
 }
 
-func DetectHostOS() System {
+func DetectHostOS() systemDetails {
 	switch runtime.GOOS {
 	case "windows":
-		return System{OS: Windows, ScriptLang: "powershell"}
+		return systemDetails{OSName: Windows, ScriptLang: "powershell"}
 	case "linux":
-		return System{OS: Linux, ScriptLang: "bash"}
+		return systemDetails{OSName: Linux, ScriptLang: "bash"}
 	case "darwin":
-		return System{OS: MacOS, ScriptLang: "bash"}
+		return systemDetails{OSName: MacOS, ScriptLang: "bash"}
 	default:
-		return System{OS: Linux, ScriptLang: "sh"}
+		return systemDetails{OSName: Linux, ScriptLang: "sh"}
 	}
 }
 
-func (s *CMDService) PrintCommandHistory() {
+func (s *cmdService) PrintCommandHistory() {
 	fmt.Println("=== Command History ===")
-	for i, cmd := range s.Commands {
+	for i, cmd := range s.commands {
 		fmt.Printf("Command #%d:\n%s\n", i+1, cmd.String())
 	}
 }
 
-func (c *Command) String() string {
+func (s systemDetails) String() string {
+	return fmt.Sprintf("[OS: %s, Script: %s]", s.OSName, s.ScriptLang)
+}
+
+func (c command) String() string {
 	return fmt.Sprintf("[\n\tInput: %s\n\tOutput: %s\n\tError: %s\n],", c.Input, c.Output, c.Err)
 }
