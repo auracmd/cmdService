@@ -9,7 +9,7 @@ import (
 func main() {
 	service := core.NewCMD()
 	// test linux commnads
-	if service.OSName == core.Linux || service.OSName == core.MacOS {
+	if service.IsLinux() {
 		service.Execute("echo hello")
 		service.Execute("ls -la")
 		service.Execute("a") // command not found.

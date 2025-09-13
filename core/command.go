@@ -108,6 +108,17 @@ func (s *CmdService) PrintCommandHistory() {
 	}
 }
 
+// 	if service.OSName == core.Linux || service.OSName == core.MacOS {
+
+func (s *CmdService) IsLinux() bool {
+	switch s.OSName {
+	case Linux, MacOS:
+		return true
+	default:
+		return false
+	}
+}
+
 func (c command) PrettyString() string {
 	return fmt.Sprintf("[Input: %s]\n[Output: %s]\n[Error: %s]", c.Input, c.Output, c.Err)
 }
